@@ -42,7 +42,7 @@ export const GET_ACCOUNT_BY_EMAIL = gql`
 export const EmailBlocks = () => {
   const [inputValue, setInputValue] = useState<string>('');
   const [showResult, setShowResult] = useState<Boolean>(false);
-  const [getAccount, { loading, error, data }] = useLazyQuery(
+  const [getAccount, { loading, error, data, refetch }] = useLazyQuery(
     GET_ACCOUNT_BY_EMAIL
   );
 
@@ -91,6 +91,7 @@ export const EmailBlocks = () => {
         <>
           <hr />
           <AccountSearchResult
+            onCleared={refetch}
             {...{
               loading,
               error,
@@ -104,21 +105,24 @@ export const EmailBlocks = () => {
 };
 
 const AccountSearchResult = ({
+  onCleared,
   loading,
   error,
   data,
 }: {
+  onCleared: Function;
   loading: boolean;
   error?: {};
   data?: {
     accountByEmail: AccountType;
   };
 }) => {
+  console.log(error);
   if (loading) return <p data-testid="loading">Loading...</p>;
   if (error) return <p data-testid="error">An error occured.</p>;
 
   if (data?.accountByEmail) {
-    return <Account {...data.accountByEmail} />;
+    return <Account onCleared={onCleared} {...data.accountByEmail} />;
   }
   return <p data-testid="no-account">Account not found.</p>;
 };

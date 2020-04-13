@@ -7,39 +7,71 @@ import Chance from 'chance';
 import { render, fireEvent, act } from '@testing-library/react';
 import { MockedProvider, MockedResponse } from '@apollo/react-testing';
 import '@testing-library/jest-dom/extend-expect';
+import { CLEAR_BOUNCES_BY_EMAIL } from './Account/index';
 import { GET_ACCOUNT_BY_EMAIL, EmailBlocks } from './index';
 
 const chance = new Chance();
+let testEmail: string;
+let testAccountResponse: MockedResponse;
+let deleteBouncesMutationCalled = false;
 
-const exampleEmail = chance.email();
-
-function exampleEmailBounce() {
+function exampleBounce(email: string) {
   return {
-    email: exampleEmail,
+    email: email,
     createdAt: chance.timestamp(),
     bounceType: 'Permanent',
     bounceSubType: 'General',
   };
 }
 
-const exampleAccount: MockedResponse = {
-  request: {
-    query: GET_ACCOUNT_BY_EMAIL,
-    variables: {
-      email: exampleEmail,
-    },
-  },
-  result: {
-    data: {
-      accountByEmail: {
-        uid: 'a1b2c3',
-        email: exampleEmail,
-        createdAt: chance.timestamp(),
-        emailBounces: [exampleEmailBounce(), exampleEmailBounce()],
+function exampleAccountResponse(email: string): MockedResponse {
+  return {
+    request: {
+      query: GET_ACCOUNT_BY_EMAIL,
+      variables: {
+        email,
       },
     },
-  },
-};
+    result: {
+      data: {
+        accountByEmail: {
+          uid: 'a1b2c3',
+          email,
+          createdAt: chance.timestamp(),
+          emailBounces: [exampleBounce(email), exampleBounce(email)],
+        },
+      },
+    },
+  };
+}
+
+function exampleBounceMutationResponse(email: string): MockedResponse {
+  return {
+    request: {
+      query: CLEAR_BOUNCES_BY_EMAIL,
+      variables: {
+        email: email,
+      },
+    },
+    result: () => {
+      deleteBouncesMutationCalled = true;
+      return {
+        data: {
+          clearEmailBounce: true,
+        },
+      };
+    },
+  };
+}
+
+beforeAll(function() {
+  jest.spyOn(window, 'confirm').mockImplementation(() => true);
+});
+
+beforeEach(function() {
+  testEmail = chance.email();
+  testAccountResponse = exampleAccountResponse(testEmail);
+});
 
 it('renders without imploding', () => {
   const renderResult = render(<EmailBlocks />);
@@ -48,7 +80,7 @@ it('renders without imploding', () => {
   expect(getByTestId('form')).toBeInTheDocument();
 });
 
-test.skip('displays the loading state on submit', async () => {
+it('displays the loading state on submit', async () => {
   const renderResult = render(
     <MockedProvider mocks={[]}>
       <EmailBlocks />
@@ -57,7 +89,7 @@ test.skip('displays the loading state on submit', async () => {
   let getByTestId = renderResult.getByTestId;
 
   fireEvent.change(getByTestId('email'), {
-    target: { value: exampleEmail },
+    target: { value: testEmail },
   });
   fireEvent.blur(getByTestId('email'));
 
@@ -68,9 +100,14 @@ test.skip('displays the loading state on submit', async () => {
   expect(getByTestId('loading')).toBeInTheDocument();
 });
 
-it('displays the results when there are results', async () => {
+it('displays the account email bounces, and can clear them', async () => {
+  const bounceMutationResponse = exampleBounceMutationResponse(testEmail);
+
   const renderResult = render(
-    <MockedProvider mocks={[exampleAccount]} addTypename={false}>
+    <MockedProvider
+      mocks={[testAccountResponse, bounceMutationResponse]}
+      addTypename={false}
+    >
       <EmailBlocks />
     </MockedProvider>
   );
@@ -78,7 +115,7 @@ it('displays the results when there are results', async () => {
   let queryAllByTestId = renderResult.queryAllByTestId;
 
   fireEvent.change(getByTestId('email'), {
-    target: { value: exampleEmail },
+    target: { value: testEmail },
   });
   fireEvent.blur(getByTestId('email'));
 
@@ -88,21 +125,31 @@ it('displays the results when there are results', async () => {
 
   expect(getByTestId('account')).toBeInTheDocument();
   expect(queryAllByTestId('bounce').length).toEqual(2);
+
+  await act(async () => {
+    fireEvent.click(getByTestId('clear-button'));
+  });
+  // account should still be visible
+  expect(getByTestId('account')).toBeInTheDocument();
+  // but there should be no bounces anymore
+  expect(queryAllByTestId('bounce').length).toEqual(0);
+  expect(getByTestId('no-bounces')).toBeInTheDocument();
+  expect(deleteBouncesMutationCalled).toBe(true);
 });
 
 it('displays the error state if theres an error', async () => {
-  const accountResponse = exampleAccount;
-  accountResponse.error = new Error('zoiks');
+  const erroredAccountResponse = Object.assign({}, testAccountResponse);
+  erroredAccountResponse.error = new Error('zoiks');
 
   const renderResult = render(
-    <MockedProvider mocks={[accountResponse]} addTypename={false}>
+    <MockedProvider mocks={[erroredAccountResponse]} addTypename={false}>
       <EmailBlocks />
     </MockedProvider>
   );
   let getByTestId = renderResult.getByTestId;
 
   fireEvent.change(getByTestId('email'), {
-    target: { value: exampleEmail },
+    target: { value: testEmail },
   });
   fireEvent.blur(getByTestId('email'));
 
