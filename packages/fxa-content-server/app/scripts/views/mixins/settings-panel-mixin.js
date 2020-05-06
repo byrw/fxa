@@ -52,8 +52,8 @@ export default {
   },
 
   _closePanelReturnToSettings() {
-    this.navigate('settings');
     this.clearInput();
+    this.navigate('settings');
     this.closePanel();
   },
 
@@ -66,8 +66,8 @@ export default {
     });
 
     const formEl = this.$('form')[0];
-    if (formEl) {
-      formEl.reset();
+    for (let i = 0; i < formEl.length; i++) {
+      formEl[i].value = '';
     }
   },
 
