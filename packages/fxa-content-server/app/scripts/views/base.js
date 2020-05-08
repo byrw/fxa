@@ -826,6 +826,20 @@ var BaseView = Backbone.View.extend({
     return err;
   },
 
+  clearInput() {
+    const $inputEls = this.$('input');
+
+    $inputEls.each((i, inputEl) => {
+      // Called to clear validation tooltips. issues/5680
+      $(inputEl).change();
+    });
+
+    const formEl = this.$('form')[0];
+    if (formEl) {
+      formEl.reset();
+    }
+  },
+
   /**
    * Log the current view
    */
